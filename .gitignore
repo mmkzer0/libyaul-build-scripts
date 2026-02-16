@@ -2,6 +2,7 @@
 /.config
 /.config.old
 /build.log
+/dist/
 
 # Not clear as to why this is showing up
 /include/

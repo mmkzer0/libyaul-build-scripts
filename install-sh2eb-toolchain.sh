@@ -25,6 +25,7 @@ Optional environment variables:
   STABLE_LINK     (default: sh2eb-elf-current)
   FORCE           (default: n)
   RUN_SMOKE       (default: y)
+  RUN_REGRESSION_SMOKE (default: value of RUN_SMOKE)
 EOF
 }
 
@@ -50,6 +51,7 @@ BIN_DIR="${BIN_DIR:-${HOME}/.local/bin}"
 STABLE_LINK="${STABLE_LINK:-sh2eb-elf-current}"
 FORCE="${FORCE:-n}"
 RUN_SMOKE="${RUN_SMOKE:-y}"
+RUN_REGRESSION_SMOKE="${RUN_REGRESSION_SMOKE:-${RUN_SMOKE}}"
 
 INSTALL_DIR="${INSTALL_PREFIX}/${ARCHIVE_BASE}"
 STABLE_PATH="${INSTALL_PREFIX}/${STABLE_LINK}"
@@ -112,6 +114,16 @@ if [ "${RUN_SMOKE}" = "y" ]; then
         "${STABLE_PATH}/bin/sh2eb-elf-gcc" --version | head -n 1
         "${STABLE_PATH}/bin/sh2eb-elf-as" --version | head -n 1
         "${STABLE_PATH}/bin/sh2eb-elf-ld" --version | head -n 1
+    fi
+fi
+
+if [ "${RUN_REGRESSION_SMOKE}" = "y" ]; then
+    REGRESSION_SCRIPT="${SCRIPT_DIR}/smoke-regressions-sh2eb.sh"
+    if [ -x "${REGRESSION_SCRIPT}" ]; then
+        info "Running regression smoke test against installed toolchain"
+        TOOLROOT="${STABLE_PATH}/bin" "${REGRESSION_SCRIPT}"
+    else
+        info "No smoke-regressions-sh2eb.sh next to installer; skipping regression smoke test"
     fi
 fi
 

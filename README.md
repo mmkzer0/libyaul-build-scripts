@@ -78,6 +78,7 @@ brew install \
   grep \
   gawk \
   binutils \
+  llvm \
   help2man \
   flex \
   bison \
@@ -94,7 +95,8 @@ Manual environment setup (the wrapper script below applies this automatically):
 
 ```
 export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
-export PATH="${HOMEBREW_PREFIX}/opt/make/libexec/gnubin:${HOMEBREW_PREFIX}/opt/coreutils/libexec/gnubin:${HOMEBREW_PREFIX}/opt/gnu-sed/libexec/gnubin:${HOMEBREW_PREFIX}/opt/gnu-tar/libexec/gnubin:${HOMEBREW_PREFIX}/opt/grep/libexec/gnubin:${HOMEBREW_PREFIX}/opt/gawk/libexec/gnubin:${PATH}"
+export LLVM_PREFIX="${LLVM_PREFIX:-$(brew --prefix llvm)}"
+export PATH="${LLVM_PREFIX}/bin:${HOMEBREW_PREFIX}/opt/make/libexec/gnubin:${HOMEBREW_PREFIX}/opt/coreutils/libexec/gnubin:${HOMEBREW_PREFIX}/opt/gnu-sed/libexec/gnubin:${HOMEBREW_PREFIX}/opt/gnu-tar/libexec/gnubin:${HOMEBREW_PREFIX}/opt/grep/libexec/gnubin:${HOMEBREW_PREFIX}/opt/gawk/libexec/gnubin:${PATH}"
 export AWK="$(command -v gawk)"
 export MAKE="$(command -v gmake)"
 export OBJCOPY="${OBJCOPY:-$(command -v gobjcopy || command -v llvm-objcopy)}"
@@ -200,6 +202,8 @@ git submodule update
 cd crosstool-ng
 ./bootstrap
 
+LLVM_PREFIX="${LLVM_PREFIX:-$(brew --prefix llvm)}" \
+PATH="${LLVM_PREFIX}/bin:${PATH}" \
 AWK="$(command -v gawk)" \
 MAKE="$(command -v gmake)" \
 OBJCOPY="${OBJCOPY:-$(command -v gobjcopy || command -v llvm-objcopy)}" \
@@ -231,9 +235,35 @@ Optional overrides:
 ```
 CASE_ROOT=/Volumes/ctng-case \
 CT_HOST_EXTRA_CFLAGS="-Wno-error=incompatible-function-pointer-types -UTARGET_OS_MAC" \
+LLVM_PREFIX=/opt/homebrew/opt/llvm \
 OBJCOPY=/path/to/llvm-objcopy \
 OBJDUMP=/path/to/llvm-objdump \
 READELF=/path/to/llvm-readelf \
+LOCAL_PATCH_DIR=/path/to/patches \
+./build-macos-sh2.sh
+```
+
+### Local GCC patches (macOS fast-path)
+
+The wrapper enforces local patch usage for GCC with:
+
+- `CT_PATCH_ORDER="bundled,local"`
+- `CT_LOCAL_PATCH_DIR="$LOCAL_PATCH_DIR"`
+
+Expected local patch layout:
+
+```
+patches/
+  gcc/
+    14.3.0/
+      *.patch
+```
+
+By default `LOCAL_PATCH_DIR` is `./patches`. Override it if needed:
+
+```
+LOCAL_PATCH_DIR=/absolute/path/to/patches \
+CASE_ROOT=/Volumes/ctng-case \
 ./build-macos-sh2.sh
 ```
 
@@ -243,6 +273,18 @@ READELF=/path/to/llvm-readelf \
 TOOLROOT=/Volumes/ctng-case/x-tools/sh2eb-elf/bin \
 ./smoke-test-sh2eb.sh
 ```
+
+### Regression smoke test (PR122948)
+
+```
+TOOLROOT=/Volumes/ctng-case/x-tools/sh2eb-elf/bin \
+./smoke-regressions-sh2eb.sh
+```
+
+Expected behavior:
+
+- Unpatched compiler: script fails (detects known bad `sett`/`subc` lowering).
+- Patched compiler: script passes.
 
 ### Package toolchain bundle
 
@@ -257,6 +299,7 @@ Outputs are created in `dist/`:
 - `...manifest.txt`
 - `install-sh2eb-toolchain.sh` (copied next to the bundle)
 - `smoke-test-sh2eb.sh` (copied next to the bundle)
+- `smoke-regressions-sh2eb.sh` (copied next to the bundle)
 
 ### Install from bundle (user-local, recommended)
 
@@ -265,6 +308,18 @@ Use `~/.local` by default:
 
 ```
 ARCHIVE="$(ls -t ./dist/sh2eb-elf-darwin-arm64-gcc*-binutils*.tar.xz | head -n 1)"
+./dist/install-sh2eb-toolchain.sh "${ARCHIVE}"
+```
+
+By default the installer runs both:
+
+- `smoke-test-sh2eb.sh`
+- `smoke-regressions-sh2eb.sh` (when present)
+
+Disable either check with:
+
+```
+RUN_SMOKE=n RUN_REGRESSION_SMOKE=n \
 ./dist/install-sh2eb-toolchain.sh "${ARCHIVE}"
 ```
 

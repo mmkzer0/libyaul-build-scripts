@@ -1,0 +1,33 @@
+From 5d7d6a3065651e0e4f28d89ce59c137887dcad3a Mon Sep 17 00:00:00 2001
+From: libyaul-build-scripts <noreply@example.com>
+Date: Mon, 16 Feb 2026 21:55:00 +0000
+Subject: [PATCH] sh/libgcc: add libgcc_tm.h dep for unwind-dw2-Os-4-200.o
+
+On parallel builds, unwind-dw2-Os-4-200.o can start compiling before
+libgcc_tm.h is generated, causing:
+
+  fatal error: libgcc_tm.h: No such file or directory
+
+The custom SH rule in libgcc/config/sh/t-sh does not currently depend on
+libgcc_tm.h. Add the missing dependency so make guarantees header
+generation order.
+---
+ libgcc/config/sh/t-sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libgcc/config/sh/t-sh b/libgcc/config/sh/t-sh
+index 47fdc4d3a34..8571d5f5317 100644
+--- a/libgcc/config/sh/t-sh
++++ b/libgcc/config/sh/t-sh
+@@ -45,7 +45,7 @@ sdivsi3_i4i-Os-4-200.o: $(srcdir)/config/sh/lib1funcs-Os-4-200.S
+ 	$(gcc_compile) -c -DL_sdivsi3_i4i $<
+ udivsi3_i4i-Os-4-200.o: $(srcdir)/config/sh/lib1funcs-Os-4-200.S
+ 	$(gcc_compile) -c -DL_udivsi3_i4i $<
+-unwind-dw2-Os-4-200.o: $(srcdir)/unwind-dw2.c $(LIBGCC_LINKS)
++unwind-dw2-Os-4-200.o: $(srcdir)/unwind-dw2.c $(LIBGCC_LINKS) libgcc_tm.h
+ 	$(gcc_compile) $(LIBGCC2_CFLAGS) $(vis_hide) -fexceptions -Os -c $<
+ 
+ OBJS_Os_4_200=sdivsi3_i4i-Os-4-200.o udivsi3_i4i-Os-4-200.o unwind-dw2-Os-4-200.o
+-- 
+2.50.1
+

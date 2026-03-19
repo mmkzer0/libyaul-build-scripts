@@ -1,0 +1,42 @@
+From 84a03d5a6fb2c4cf6f2ce7fb58078a3e8a0b29df Mon Sep 17 00:00:00 2001
+From: libyaul-build-scripts <noreply@example.com>
+Date: Mon, 16 Feb 2026 17:10:00 +0000
+Subject: [PATCH] sh: fix SUBC T-bit model for PR target/122948
+
+PR target/122948 reports wrong-code for expressions like:
+  (b - a - 1) <= b
+
+The SH SUBC machine description modeled the new T bit as:
+  (op1 - op2 - T) > op1
+which is not equivalent to the required borrow condition. In particular,
+the carry/borrow behavior for the extra T subtraction is incorrect.
+
+Model T as unsigned:
+  (op2 + T) > op1
+using DI zero-extend arithmetic to avoid SI wraparound in the compare.
+
+This targets GCC 14.3.0 SH backend and is intended to prevent the
+sett/subc-only lowering shape seen in PR122948 reproducer codegen.
+---
+ gcc/config/sh/sh.md | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/gcc/config/sh/sh.md b/gcc/config/sh/sh.md
+index 1203209f89b..bc6ab65968e 100644
+--- a/gcc/config/sh/sh.md
++++ b/gcc/config/sh/sh.md
+@@ -1955,9 +1955,9 @@
+ 			    (match_operand:SI 2 "arith_reg_operand" "r"))
+ 		  (reg:SI T_REG)))
+    (set (reg:SI T_REG)
+-	(gtu:SI (minus:SI (minus:SI (match_dup 1) (match_dup 2))
+-			  (reg:SI T_REG))
+-		(match_dup 1)))]
++	(gtu:SI (plus:DI (zero_extend:DI (match_dup:SI 2))
++				 (zero_extend:DI (reg:SI T_REG)))
++			(zero_extend:DI (match_dup:SI 1))))]
+   "TARGET_SH1"
+   "subc	%2,%0"
+   [(set_attr "type" "arith")])
+-- 
+2.50.1

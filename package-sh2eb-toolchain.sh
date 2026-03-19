@@ -72,7 +72,11 @@ EOF
 info "Copying helper scripts to ${DIST_DIR}"
 cp "${SCRIPT_DIR}/install-sh2eb-toolchain.sh" "${DIST_DIR}/install-sh2eb-toolchain.sh"
 cp "${SCRIPT_DIR}/smoke-test-sh2eb.sh" "${DIST_DIR}/smoke-test-sh2eb.sh"
-chmod +x "${DIST_DIR}/install-sh2eb-toolchain.sh" "${DIST_DIR}/smoke-test-sh2eb.sh"
+cp "${SCRIPT_DIR}/smoke-regressions-sh2eb.sh" "${DIST_DIR}/smoke-regressions-sh2eb.sh"
+chmod +x \
+    "${DIST_DIR}/install-sh2eb-toolchain.sh" \
+    "${DIST_DIR}/smoke-test-sh2eb.sh" \
+    "${DIST_DIR}/smoke-regressions-sh2eb.sh"
 
 echo "Package complete"
 echo "  archive: ${ARCHIVE_PATH}"

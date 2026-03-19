@@ -14,6 +14,19 @@ escape_sed_repl() {
     printf '%s' "$1" | sed -e 's/[&|]/\\&/g'
 }
 
+set_string_config() {
+    local key="$1"
+    local value="$2"
+    local escaped
+
+    escaped="$(escape_sed_repl "${value}")"
+    if grep -q "^${key}=" .config; then
+        gsed -i -e "s|^${key}=.*$|${key}=\"${escaped}\"|" .config
+    else
+        printf '%s="%s"\n' "${key}" "${value}" >> .config
+    fi
+}
+
 require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
@@ -69,15 +82,25 @@ CONFIG_FILE="configs/sh2eb-elf/native-darwin-aarch64.config"
 CT_WORK_DIR="${CASE_ROOT}/.build"
 CT_PREFIX="${CASE_ROOT}/x-tools"
 CT_HOST_EXTRA_CFLAGS="${CT_HOST_EXTRA_CFLAGS:--Wno-error=incompatible-function-pointer-types -UTARGET_OS_MAC}"
+LOCAL_PATCH_DIR="${LOCAL_PATCH_DIR:-${SCRIPT_DIR}/patches}"
 
 [ -f "${SCRIPT_DIR}/${CONFIG_FILE}" ] || die "missing config file: ${CONFIG_FILE}"
 [ -d "${SCRIPT_DIR}/crosstool-ng" ] || die "missing crosstool-ng submodule directory"
+[ -d "${LOCAL_PATCH_DIR}/gcc/14.3.0" ] || die "missing local GCC patch directory: ${LOCAL_PATCH_DIR}/gcc/14.3.0"
+if ! compgen -G "${LOCAL_PATCH_DIR}/gcc/14.3.0/*.patch" >/dev/null; then
+    die "no GCC patch files found under: ${LOCAL_PATCH_DIR}/gcc/14.3.0"
+fi
 
 BREW_PREFIX="${HOMEBREW_PREFIX:-}"
 if [ -z "${BREW_PREFIX}" ]; then
     BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
 fi
 [ -n "${BREW_PREFIX}" ] || BREW_PREFIX="/opt/homebrew"
+
+LLVM_PREFIX="${LLVM_PREFIX:-}"
+if [ -z "${LLVM_PREFIX}" ]; then
+    LLVM_PREFIX="$(brew --prefix llvm 2>/dev/null || true)"
+fi
 
 for gnubin in \
     "${BREW_PREFIX}/opt/make/libexec/gnubin" \
@@ -89,6 +112,7 @@ for gnubin in \
 do
     [ -d "${gnubin}" ] && PATH="${gnubin}:${PATH}"
 done
+[ -n "${LLVM_PREFIX}" ] && [ -d "${LLVM_PREFIX}/bin" ] && PATH="${LLVM_PREFIX}/bin:${PATH}"
 export PATH
 
 for cmd in \
@@ -131,6 +155,8 @@ export READELF="$(resolve_tool READELF greadelf llvm-readelf)"
 
 info "Using CASE_ROOT=${CASE_ROOT}"
 info "Using CT_HOST_EXTRA_CFLAGS=${CT_HOST_EXTRA_CFLAGS}"
+info "Using LOCAL_PATCH_DIR=${LOCAL_PATCH_DIR}"
+[ -n "${LLVM_PREFIX}" ] && info "Using LLVM_PREFIX=${LLVM_PREFIX}"
 assert_case_sensitive_dir "${CASE_ROOT}"
 mkdir -p "${CT_WORK_DIR}" "${CT_PREFIX}"
 
@@ -151,14 +177,11 @@ info "Bootstrapping and building crosstool-ng"
 info "Selecting config ${CONFIG_FILE}"
 cp "${CONFIG_FILE}" .config
 
-WORK_DIR_ESCAPED="$(escape_sed_repl "${CT_WORK_DIR}")"
-PREFIX_DIR_ESCAPED="$(escape_sed_repl "${CT_PREFIX}/sh2eb-elf")"
-HOST_CFLAGS_ESCAPED="$(escape_sed_repl "${CT_HOST_EXTRA_CFLAGS}")"
-gsed -i \
-    -e "s|^CT_WORK_DIR=.*$|CT_WORK_DIR=\"${WORK_DIR_ESCAPED}\"|" \
-    -e "s|^CT_PREFIX_DIR=.*$|CT_PREFIX_DIR=\"${PREFIX_DIR_ESCAPED}\"|" \
-    -e "s|^CT_EXTRA_CFLAGS_FOR_HOST=.*$|CT_EXTRA_CFLAGS_FOR_HOST=\"${HOST_CFLAGS_ESCAPED}\"|" \
-    .config
+set_string_config "CT_WORK_DIR" "${CT_WORK_DIR}"
+set_string_config "CT_PREFIX_DIR" "${CT_PREFIX}/sh2eb-elf"
+set_string_config "CT_EXTRA_CFLAGS_FOR_HOST" "${CT_HOST_EXTRA_CFLAGS}"
+set_string_config "CT_PATCH_ORDER" "bundled,local"
+set_string_config "CT_LOCAL_PATCH_DIR" "${LOCAL_PATCH_DIR}"
 
 info "Building sh2eb-elf toolchain"
 crosstool-ng/ct-ng build

@@ -3,6 +3,7 @@
 /.config.old
 /build.log
 /dist/
+.DS_Store
 
 # Not clear as to why this is showing up
 /include/
